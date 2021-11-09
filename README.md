@@ -1,59 +1,70 @@
-# NYT Crossword to Puz
+# NY Times Crossword to Puz
 
-![Logo](other/logo.png)
+CLI tool to convert NY Times crosswords into Across Lite files (.puz).
 
-A windows program to convert NY Times crosswords from the web to Across Lite compatible files.
+This is a fork of [nytxw_puz](https://github.com/Q726kbXuN/nytxw_puz) with some major differences:
 
-To run this, first download and decompress the [release](https://github.com/Q726kbXuN/nytxw_puz/releases/latest/download/nytxw_puz.zip).  Then, run the executable, and answer the three questions:
+  * No browser installations are required. Authentication is performed by the program itself.
+  * Targeted for headless deployments and thus is non-interactive.
+  * Supports batch downloading with rate limiting and timeout.
 
+## Usage
 
-```
- 1) Chrome
- 2) Chromium
- 3) Firefox
- 4) Microsoft Edge
- 5) Opera
-Please select a browser that's logged into NYTimes.com: 1
-Enter the NY Times crossword URL: https://www.nytimes.com/crosswords/game/daily/1994/02/14
-Enter the output filename: example.puz
-Loading https://www.nytimes.com/crosswords/game/daily/1994/02/14...
-Created example.puz
+```bash
+pip install nytxw_puz_cli
+nytxw_puz --help
 ```
 
-Note: Running this script requires you're logged into nytimes.com in your browser.
+### Credentials
 
-Alternatively, you can pass in the browser, URL, and filename from the command line.
+The program expects a JSON credentials file to be passed via the `--credentials` flag. The expected format of the JSON is simple and as follows:
 
-To run the Python script directly, clone this repo, then setup the venv to download packages:
-```
-python -m venv .venv
-.venv\Scripts\activate.bat
+```json
+{"email": "user@domain.com", "password": "my-password"}
 ```
 
-And install the packages:
-```
-python -m pip install -r requirements.txt
-```
+### Example Using Flags
 
-Then, to use:
-```
-nyt.py Chrome https://www.nytimes.com/crosswords/game/daily/2021/08/03 2021-08-03.puz
+A simple example downloading a single crossword:
+
+```bash
+nytxw_puz --credentials my-creds.creds --urls https://www.nytimes.com/crosswords/game/daily/2020/12/31 --filenames ~/puzzles/2020/12/31.puz
 ```
 
-# Mini FAQ
+### Example Using stdin
 
-* What? Why?
+A full example of a run using cookie import/export and input of `URL,FILENAME` entries named `tasks.csv` via stdin:
 
-The New York Times announced that on August 10th, 2021, [they will no longer provide](https://www.nytimes.com/2021/08/02/crosswords/nyt-games-no-longer-available-on-across-lite-as-of-aug-9.html) Across Lite .puz files for download.  This tool was made in response to that decision, allowing users of that tool to continue to solve crossword puzzles in their favorite program.
+```bash
+nytxw_puz --credentials my-creds.creds --import-cookies mycookies.cookies --export-cookies mycookies.cookies -v < tasks.csv
+```
 
-* Why not just use the NY Times app?
+### `nytxw_gen`
 
-For me personally, I want something that works completely offline, and doesn't require I stare at my phone even more.  I'm sure other people have other reasons, so I decided to put my little tool online for others to use.
+`nytxw_gen` is a small tool to help generate date ranges of crossword puzzles in CSV format to pass into `nytxw_puz`. For example:
 
-* Help?  How do I run this?
+```bash
+nytxw_gen --start 2012-07-18 --end 2014-12-31 --path-format "~/puzzles/<year>/<month>/<day>.puz" > puzzles-to-download.csv 
+```
 
-Try following [these directions](howto.md).
 
-* Anything else?
+## Development
 
-Feel free to contact me on [reddit](https://www.reddit.com/user/nobody514/).
+### Getting Started
+
+This repository uses [poetry](https://python-poetry.org/) to manage dependencies and environments. To get started quickly, run:
+
+```bash
+cd nytxw_puz_cli
+poetry install
+```
+
+### Code Style
+
+For Python, the repository uses the default settings of the [**Black code formatter**](https://black.readthedocs.io/).
+
+Conformance can be enforced by using `black` as follows:
+
+```bash
+black <file-name>
+```

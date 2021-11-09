@@ -8,14 +8,14 @@ import re
 
 
 def decompress(compressed):
-    if (compressed is None) or (compressed == ''):
-        return ''
+    if (compressed is None) or (compressed == ""):
+        return ""
 
     dictionary = {}
     enlargeIn = 4
     dictSize = 4
     numBits = 3
-    (entry, result, w, c) = ('', '', '', '')
+    (entry, result, w, c) = ("", "", "", "")
     (i, nnext, bits, resb, maxpower, power) = (0, 0, 0, 0, 0, 0)
 
     data_string = compressed
@@ -24,7 +24,7 @@ def decompress(compressed):
     data_index = 1
 
     for i in range(3):
-        dictionary[i] = ''
+        dictionary[i] = ""
 
     bits = 0
     maxpower = pow(2, 2)
@@ -80,7 +80,7 @@ def decompress(compressed):
 
         c = chr(bits)
     elif nnext == 2:
-        return ''
+        return ""
 
     dictionary[3] = c
     result = c
@@ -88,7 +88,7 @@ def decompress(compressed):
 
     while True:
         if data_index > len(data_string):
-            return ''
+            return ""
 
         bits = 0
         maxpower = pow(2, numBits)

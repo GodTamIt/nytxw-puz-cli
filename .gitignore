@@ -1,5 +1,6 @@
 # Ignore VS Code stuff
 **/.vscode/
+*.code-workspace
 
 # Python pre-compiled things
 **/__pycache__/
@@ -34,3 +35,12 @@
 dist/*
 build/*
 *.spec
+
+# Credentials
+*.creds
+
+# Cookies
+*.cookies
+
+# CSV files
+*.csv

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# This implementation is modified from 
+# This implementation is modified from
 # https://github.com/alexdej/puzpy/
 # Removes py2 support, and adds the ability to add
 # rebus clues to a new file
@@ -11,46 +11,43 @@ import math
 import string
 import struct
 
-__title__ = 'puzpy'
-__version__ = '0.2.3'
-__author__ = 'Alex DeJarnatt'
-__author_email__ = 'adejarnatt@gmail.com'
-__maintainer__ = 'Simeon Visser'
-__maintainer_email__ = 'simeonvisser@gmail.com'
-__license__ = 'MIT'
-__copyright__ = 'Copyright 2009 Alex DeJarnatt'
+__title__ = "puzpy"
+__version__ = "0.2.3"
+__author__ = "Alex DeJarnatt"
+__author_email__ = "adejarnatt@gmail.com"
+__maintainer__ = "Simeon Visser"
+__maintainer_email__ = "simeonvisser@gmail.com"
+__license__ = "MIT"
+__copyright__ = "Copyright 2009 Alex DeJarnatt"
 
 
-HEADER_FORMAT = '''<
+HEADER_FORMAT = """<
              H 11s        xH
              Q       4s  2sH
              12s         BBH
-             H H '''
+             H H """
 
-HEADER_CKSUM_FORMAT = '<BBH H H '
+HEADER_CKSUM_FORMAT = "<BBH H H "
 
-EXTENSION_HEADER_FORMAT = '< 4s  H H '
+EXTENSION_HEADER_FORMAT = "< 4s  H H "
 
-MASKSTRING = 'ICHEATED'
+MASKSTRING = "ICHEATED"
 
-ENCODING = 'ISO-8859-1'
-ENCODING_UTF8 = 'UTF-8'
-ENCODING_ERRORS = 'namereplace'  # e.g. '\N{EM DASH}'. Least-worst option.
+ENCODING = "ISO-8859-1"
+ENCODING_UTF8 = "UTF-8"
+ENCODING_ERRORS = "namereplace"  # e.g. '\N{EM DASH}'. Least-worst option.
 
-ACROSSDOWN = b'ACROSS&DOWN'
+ACROSSDOWN = b"ACROSS&DOWN"
 
-BLACKSQUARE = '.'
-BLACKSQUARE2 = ':'
+BLACKSQUARE = "."
+BLACKSQUARE2 = ":"
 
 
 def enum(**enums):
-    return type('Enum', (), enums)
+    return type("Enum", (), enums)
 
 
-PuzzleType = enum(
-    Normal=0x0001,
-    Diagramless=0x0401
-)
+PuzzleType = enum(Normal=0x0001, Diagramless=0x0401)
 
 # the following diverges from the documentation
 # but works for the files I've tested
@@ -58,7 +55,7 @@ SolutionState = enum(
     # solution is available in plaintext
     Unlocked=0x0000,
     # solution is locked (scrambled) with a key
-    Locked=0x0004
+    Locked=0x0004,
 )
 
 GridMarkup = enum(
@@ -71,7 +68,7 @@ GridMarkup = enum(
     # user got a hint
     Revealed=0x40,
     # circled
-    Circled=0x80
+    Circled=0x80,
 )
 
 
@@ -79,19 +76,19 @@ GridMarkup = enum(
 Extensions = enum(
     # grid of rebus indices: 0 for non-rebus;
     # i+1 for key i into RebusSolutions map
-    Rebus=b'GRBS',
+    Rebus=b"GRBS",
     # map of rebus solution entries eg 0:HEART;1:DIAMOND;17:CLUB;23:SPADE;
-    RebusSolutions=b'RTBL',
+    RebusSolutions=b"RTBL",
     # user's rebus entries
-    RebusFill=b'RUSR',
+    RebusFill=b"RUSR",
     # timer state: 'a,b' where a is the number of seconds elapsed and
     # b is a boolean (0,1) for whether the timer is running
-    Timer=b'LTIM',
+    Timer=b"LTIM",
     # grid cell markup: previously incorrect: 0x10;
     # currently incorrect: 0x20,
     # hinted: 0x40,
     # circled: 0x80
-    Markup=b'GEXT'
+    Markup=b"GEXT",
 )
 
 
@@ -100,7 +97,7 @@ def read(filename):
     Read a .puz file and return the Puzzle object.
     throws PuzzleFormatError if there's any problem with the file format.
     """
-    with open(filename, 'rb') as f:
+    with open(filename, "rb") as f:
         return load(f.read())
 
 
@@ -119,34 +116,34 @@ class PuzzleFormatError(Exception):
     Indicates a format error in the .puz file. May be thrown due to
     invalid headers, invalid checksum validation, or other format issues.
     """
-    def __init__(self, message=''):
+
+    def __init__(self, message=""):
         self.message = message
 
 
 class Puzzle:
-    """Represents a puzzle
-    """
+    """Represents a puzzle"""
+
     def __init__(self):
-        """Initializes a blank puzzle
-        """
-        self.preamble = b''
-        self.postscript = b''
-        self.title = ''
-        self.author = ''
-        self.copyright = ''
+        """Initializes a blank puzzle"""
+        self.preamble = b""
+        self.postscript = b""
+        self.title = ""
+        self.author = ""
+        self.copyright = ""
         self.width = 0
         self.height = 0
-        self.version = b'1.3'
-        self.fileversion = b'1.3\0'  # default
+        self.version = b"1.3"
+        self.fileversion = b"1.3\0"  # default
         self.encoding = ENCODING
         # these are bytes that might be unused
-        self.unk1 = b'\0' * 2
-        self.unk2 = b'\0' * 12
+        self.unk1 = b"\0" * 2
+        self.unk2 = b"\0" * 12
         self.scrambled_cksum = 0
-        self.fill = ''
-        self.solution = ''
+        self.fill = ""
+        self.solution = ""
         self.clues = []
-        self.notes = ''
+        self.notes = ""
         self.extensions = {}
         # the folowing is so that we can round-trip values in order:
         self._extensions_order = []
@@ -161,11 +158,13 @@ class Puzzle:
         # start of the puzzle use the ACROSS&DOWN magic string as a waypoint
         # save the preamble for round-tripping
         if not s.seek_to(ACROSSDOWN, -2):
-            raise PuzzleFormatError("Data does not appear to represent a "
-                                    "puzzle. Are you sure you didn't intend "
-                                    "to use read?")
+            raise PuzzleFormatError(
+                "Data does not appear to represent a "
+                "puzzle. Are you sure you didn't intend "
+                "to use read?"
+            )
 
-        self.preamble = s.data[:s.pos]
+        self.preamble = s.data[: s.pos]
 
         puzzle_data = s.unpack(HEADER_FORMAT)
         cksum_gbl = puzzle_data[0]
@@ -215,38 +214,46 @@ class Puzzle:
             self.postscript = s.read_to_end()
 
         if cksum_gbl != self.global_cksum():
-            raise PuzzleFormatError('global checksum does not match')
+            raise PuzzleFormatError("global checksum does not match")
         if cksum_hdr != self.header_cksum():
-            raise PuzzleFormatError('header checksum does not match')
+            raise PuzzleFormatError("header checksum does not match")
         if cksum_magic != self.magic_cksum():
-            raise PuzzleFormatError('magic checksum does not match')
+            raise PuzzleFormatError("magic checksum does not match")
         for code, cksum_ext in ext_cksum.items():
             if cksum_ext != data_cksum(self.extensions[code]):
-                raise PuzzleFormatError(
-                    'extension %s checksum does not match' % code
-                )
+                raise PuzzleFormatError("extension %s checksum does not match" % code)
 
     def save(self, filename):
         puzzle_bytes = self.tobytes()
-        with open(filename, 'wb') as f:
+        with open(filename, "wb") as f:
             f.write(puzzle_bytes)
 
     def tobytes(self):
         s = PuzzleBuffer(encoding=self.encoding)
         # commit any changes from helpers
         for h in self.helpers.values():
-            if 'save' in dir(h):
+            if "save" in dir(h):
                 h.save()
 
         # include any preamble text we might have found on read
         s.write(self.preamble)
 
-        s.pack(HEADER_FORMAT,
-               self.global_cksum(), ACROSSDOWN,
-               self.header_cksum(), self.magic_cksum(),
-               self.fileversion, self.unk1, self.scrambled_cksum,
-               self.unk2, self.width, self.height,
-               len(self.clues), self.puzzletype, self.solution_state)
+        s.pack(
+            HEADER_FORMAT,
+            self.global_cksum(),
+            ACROSSDOWN,
+            self.header_cksum(),
+            self.magic_cksum(),
+            self.fileversion,
+            self.unk1,
+            self.scrambled_cksum,
+            self.unk2,
+            self.width,
+            self.height,
+            len(self.clues),
+            self.puzzletype,
+            self.solution_state,
+        )
 
         s.write(self.encode(self.solution))
         s.write(self.encode(self.fill))
@@ -268,13 +275,12 @@ class Puzzle:
         for code in self._extensions_order:
             data = ext.pop(code, None)
             if data:
-                s.pack(EXTENSION_HEADER_FORMAT, code,
-                       len(data), data_cksum(data))
-                s.write(data + b'\0')
+                s.pack(EXTENSION_HEADER_FORMAT, code, len(data), data_cksum(data))
+                s.write(data + b"\0")
 
         for code, data in ext.items():
             s.pack(EXTENSION_HEADER_FORMAT, code, len(data), data_cksum(data))
-            s.write(data + b'\0')
+            s.write(data + b"\0")
 
         # postscript is initialized, read, and stored as bytes. In case it is
         # overwritten as a string, this try/except converts it back.
@@ -291,46 +297,53 @@ class Puzzle:
         return s.encode(self.encoding, ENCODING_ERRORS)
 
     def encode_zstring(self, s):
-        return self.encode(s) + b'\0'
+        return self.encode(s) + b"\0"
 
     def version_tuple(self):
-        return tuple(map(int, self.version.split(b'.')))
+        return tuple(map(int, self.version.split(b".")))
 
     def has_rebus(self):
         return self.rebus().has_rebus()
 
     def create_empty_rebus(self):
         rebus = self.rebus()
-        self.extensions[Extensions.Rebus] = b''
-        self.extensions[Extensions.RebusSolutions] = b''
+        self.extensions[Extensions.Rebus] = b""
+        self.extensions[Extensions.RebusSolutions] = b""
         rebus.fill = {}
         rebus.solutions = {}
         rebus.table = []
         return rebus
 
     def rebus(self):
-        return self.helpers.setdefault('rebus', Rebus(self))
+        return self.helpers.setdefault("rebus", Rebus(self))
 
     def has_markup(self):
         return self.markup().has_markup()
 
     def markup(self):
-        return self.helpers.setdefault('markup', Markup(self))
+        return self.helpers.setdefault("markup", Markup(self))
 
     def clue_numbering(self):
         numbering = DefaultClueNumbering(self.fill, self.clues, self.width, self.height)
-        return self.helpers.setdefault('clues', numbering)
+        return self.helpers.setdefault("clues", numbering)
 
     def blacksquare(self):
-        return BLACKSQUARE2 if self.puzzletype == PuzzleType.Diagramless else BLACKSQUARE
+        return (
+            BLACKSQUARE2 if self.puzzletype == PuzzleType.Diagramless else BLACKSQUARE
+        )
 
     def is_solution_locked(self):
         return bool(self.solution_state != SolutionState.Unlocked)
 
     def unlock_solution(self, key):
         if self.is_solution_locked():
-            unscrambled = unscramble_solution(self.solution, self.width, self.height, key,
-                                              ignore_chars=self.blacksquare())
+            unscrambled = unscramble_solution(
+                self.solution,
+                self.width,
+                self.height,
+                key,
+                ignore_chars=self.blacksquare(),
+            )
             if not self.check_answers(unscrambled):
                 return False
 
@@ -344,25 +357,48 @@ class Puzzle:
     def lock_solution(self, key):
         if not self.is_solution_locked():
             # set the scrambled bit and cksum
-            self.scrambled_cksum = scrambled_cksum(self.solution, self.width, self.height,
-                                                   ignore_chars=self.blacksquare(), encoding=self.encoding)
+            self.scrambled_cksum = scrambled_cksum(
+                self.solution,
+                self.width,
+                self.height,
+                ignore_chars=self.blacksquare(),
+                encoding=self.encoding,
+            )
             self.solution_state = SolutionState.Locked
-            scrambled = scramble_solution(self.solution, self.width, self.height, key,
-                                          ignore_chars=self.blacksquare())
+            scrambled = scramble_solution(
+                self.solution,
+                self.width,
+                self.height,
+                key,
+                ignore_chars=self.blacksquare(),
+            )
             self.solution = scrambled
 
     def check_answers(self, fill):
         if self.is_solution_locked():
-            scrambled = scrambled_cksum(fill, self.width, self.height,
-                                        ignore_chars=self.blacksquare(), encoding=self.encoding)
+            scrambled = scrambled_cksum(
+                fill,
+                self.width,
+                self.height,
+                ignore_chars=self.blacksquare(),
+                encoding=self.encoding,
+            )
             return scrambled == self.scrambled_cksum
         else:
             return fill == self.solution
 
     def header_cksum(self, cksum=0):
-        return data_cksum(struct.pack(HEADER_CKSUM_FORMAT,
-                          self.width, self.height, len(self.clues),
-                          self.puzzletype, self.solution_state), cksum)
+        return data_cksum(
+            struct.pack(
+                HEADER_CKSUM_FORMAT,
+                self.width,
+                self.height,
+                len(self.clues),
+                self.puzzletype,
+                self.solution_state,
+            ),
+            cksum,
+        )
 
     def text_cksum(self, cksum=0):
         # for the checksum to work these fields must be added in order with
@@ -398,18 +434,16 @@ class Puzzle:
             self.header_cksum(),
             data_cksum(self.encode(self.solution)),
             data_cksum(self.encode(self.fill)),
-            self.text_cksum()
+            self.text_cksum(),
         ]
 
         cksum_magic = 0
         for (i, cksum) in enumerate(reversed(cksums)):
             cksum_magic <<= 8
+            cksum_magic |= ord(MASKSTRING[len(cksums) - i - 1]) ^ (cksum & 0x00FF)
             cksum_magic |= (
-                ord(MASKSTRING[len(cksums) - i - 1]) ^ (cksum & 0x00ff)
-            )
-            cksum_magic |= (
-                (ord(MASKSTRING[len(cksums) - i - 1 + 4]) ^ (cksum >> 8)) << 32
-            )
+                ord(MASKSTRING[len(cksums) - i - 1 + 4]) ^ (cksum >> 8)
+            ) << 32
 
         return cksum_magic
 
@@ -419,6 +453,7 @@ class PuzzleBuffer:
     wraps a data buffer ('' or []) and provides .puz-specific methods for
     reading and writing data
     """
+
     def __init__(self, data=None, encoding=ENCODING):
         self.data = data or []
         self.encoding = encoding
@@ -433,20 +468,20 @@ class PuzzleBuffer:
     def read(self, n_bytes):
         start = self.pos
         self.pos += n_bytes
-        return self.data[start:self.pos]
+        return self.data[start : self.pos]
 
     def read_to_end(self):
         start = self.pos
         self.pos = self.length()
-        return self.data[start:self.pos]
+        return self.data[start : self.pos]
 
     def read_string(self):
-        return self.read_until(b'\0')
+        return self.read_until(b"\0")
 
     def read_until(self, c):
         start = self.pos
         self.seek_to(c, 1)  # read past
-        return str(self.data[start:self.pos-1], self.encoding)
+        return str(self.data[start : self.pos - 1], self.encoding)
 
     def seek_to(self, s, offset=0):
         try:
@@ -461,8 +496,8 @@ class PuzzleBuffer:
         self.data.append(s)
 
     def write_string(self, s):
-        s = s or ''
-        self.data.append(s.encode(self.encoding, ENCODING_ERRORS) + b'\0')
+        s = s or ""
+        self.data.append(s.encode(self.encoding, ENCODING_ERRORS) + b"\0")
 
     def pack(self, struct_format, *values):
         self.data.append(struct.pack(struct_format, *values))
@@ -477,16 +512,17 @@ class PuzzleBuffer:
             self.pos += struct.calcsize(struct_format)
             return res
         except struct.error:
-            message = 'could not unpack values at {} for format {}'.format(
+            message = "could not unpack values at {} for format {}".format(
                 start, struct_format
             )
             raise PuzzleFormatError(message)
 
     def tobytes(self):
-        return b''.join(self.data)
+        return b"".join(self.data)
 
 
 # clue numbering helper
+
 
 class DefaultClueNumbering:
     def __init__(self, grid, clues, width, height):
@@ -505,23 +541,27 @@ class DefaultClueNumbering:
                 lastc = c
                 is_across = self.col(i) == 0 or is_blacksquare(grid[i - 1])
                 if is_across and self.len_across(i) > 1:
-                    a.append({
-                        'num': n,
-                        'clue': clues[c],
-                        'clue_index': c,
-                        'cell': i,
-                        'len': self.len_across(i)
-                    })
+                    a.append(
+                        {
+                            "num": n,
+                            "clue": clues[c],
+                            "clue_index": c,
+                            "cell": i,
+                            "len": self.len_across(i),
+                        }
+                    )
                     c += 1
                 is_down = self.row(i) == 0 or is_blacksquare(grid[i - width])
                 if is_down and self.len_down(i) > 1:
-                    d.append({
-                        'num': n,
-                        'clue': clues[c],
-                        'clue_index': c,
-                        'cell': i,
-                        'len': self.len_down(i)
-                    })
+                    d.append(
+                        {
+                            "num": n,
+                            "clue": clues[c],
+                            "clue_index": c,
+                            "cell": i,
+                            "len": self.len_down(i),
+                        }
+                    )
                     c += 1
                 if c > lastc:
                     n += 1
@@ -543,7 +583,7 @@ class DefaultClueNumbering:
 
     def len_down(self, index):
         for c in range(0, self.height - self.row(index)):
-            if is_blacksquare(self.grid[index + c*self.width]):
+            if is_blacksquare(self.grid[index + c * self.width]):
                 return c
         return c + 1
 
@@ -553,19 +593,17 @@ class Rebus:
         self.puzzle = puzzle
         self.temp = {}
         # parse rebus data
-        rebus_data = self.puzzle.extensions.get(Extensions.Rebus, b'')
+        rebus_data = self.puzzle.extensions.get(Extensions.Rebus, b"")
         self.table = parse_bytes(rebus_data)
-        r_sol_data = self.puzzle.extensions.get(Extensions.RebusSolutions, b'')
+        r_sol_data = self.puzzle.extensions.get(Extensions.RebusSolutions, b"")
         solutions_str = r_sol_data.decode(puzzle.encoding)
-        fill_data = self.puzzle.extensions.get(Extensions.RebusFill, b'')
+        fill_data = self.puzzle.extensions.get(Extensions.RebusFill, b"")
         fill_str = fill_data.decode(puzzle.encoding)
         self.solutions = dict(
-            (int(item[0]), item[1])
-            for item in parse_dict(solutions_str).items()
+            (int(item[0]), item[1]) for item in parse_dict(solutions_str).items()
         )
         self.fill = dict(
-            (int(item[0]), item[1])
-            for item in parse_dict(fill_str).items()
+            (int(item[0]), item[1]) for item in parse_dict(fill_str).items()
         )
 
     def add_rebus(self, answer):
@@ -614,7 +652,7 @@ class Markup:
     def __init__(self, puzzle):
         self.puzzle = puzzle
         # parse markup data
-        markup_data = self.puzzle.extensions.get(Extensions.Markup, b'')
+        markup_data = self.puzzle.extensions.get(Extensions.Markup, b"")
         self.markup = parse_bytes(markup_data)
 
     def has_markup(self):
@@ -637,18 +675,18 @@ def data_cksum(data, cksum=0):
         if isinstance(b, bytes):
             b = ord(b)
         # right-shift one with wrap-around
-        lowbit = (cksum & 0x0001)
-        cksum = (cksum >> 1)
+        lowbit = cksum & 0x0001
+        cksum = cksum >> 1
         if lowbit:
-            cksum = (cksum | 0x8000)
+            cksum = cksum | 0x8000
 
         # then add in the data and clear any carried bit past 16
-        cksum = (cksum + b) & 0xffff
+        cksum = (cksum + b) & 0xFFFF
 
     return cksum
 
 
-def replace_chars(s, chars, replacement=''):
+def replace_chars(s, chars, replacement=""):
     for ch in chars:
         s = s.replace(ch, replacement)
     return s
@@ -671,10 +709,10 @@ def scramble_string(s, key):
     Key is a 4-digit number in the range 1000 <= key <= 9999
     """
     key = key_digits(key)
-    for k in key:          # foreach digit in the key
+    for k in key:  # foreach digit in the key
         s = shift(s, key)  # for each char by each digit in the key in sequence
         s = s[k:] + s[:k]  # cut the sequence around the key digit
-        s = shuffle(s)     # do a 1:1 shuffle of the 'deck'
+        s = shuffle(s)  # do a 1:1 shuffle of the 'deck'
 
     return s
 
@@ -691,13 +729,15 @@ def unscramble_string(s, key):
     l = len(s)  # noqa: E741
     for k in key[::-1]:
         s = unshuffle(s)
-        s = s[l-k:] + s[:l-k]
+        s = s[l - k :] + s[: l - k]
         s = unshift(s, key)
 
     return s
 
 
-def scrambled_cksum(scrambled, width, height, ignore_chars=BLACKSQUARE, encoding=ENCODING):
+def scrambled_cksum(
+    scrambled, width, height, ignore_chars=BLACKSQUARE, encoding=ENCODING
+):
     data = replace_chars(square(scrambled, width, height), ignore_chars)
     return data_cksum(data.encode(encoding, ENCODING_ERRORS))
 
@@ -707,17 +747,14 @@ def key_digits(key):
 
 
 def square(data, w, h):
-    aa = [data[i:i+w] for i in range(0, len(data), w)]
-    return ''.join(
-        [''.join([aa[r][c] for r in range(0, h)]) for c in range(0, w)]
-    )
+    aa = [data[i : i + w] for i in range(0, len(data), w)]
+    return "".join(["".join([aa[r][c] for r in range(0, h)]) for c in range(0, w)])
 
 
 def shift(s, key):
     atoz = string.ascii_uppercase
-    return ''.join(
-        atoz[(atoz.index(c) + key[i % len(key)]) % len(atoz)]
-        for i, c in enumerate(s)
+    return "".join(
+        atoz[(atoz.index(c) + key[i % len(key)]) % len(atoz)] for i, c in enumerate(s)
     )
 
 
@@ -728,7 +765,7 @@ def unshift(s, key):
 def shuffle(s):
     mid = int(math.floor(len(s) / 2))
     items = functools.reduce(operator.add, zip(s[mid:], s[:mid]))
-    return ''.join(items) + (s[-1] if len(s) % 2 else '')
+    return "".join(items) + (s[-1] if len(s) % 2 else "")
 
 
 def unshuffle(s):
@@ -745,7 +782,7 @@ def restore(s, t):
     'XYZ.ABC'
     """
     t = (c for c in t)
-    return ''.join(next(t) if not is_blacksquare(c) else c for c in s)
+    return "".join(next(t) if not is_blacksquare(c) else c for c in s)
 
 
 def is_blacksquare(c):
@@ -760,18 +797,18 @@ def is_blacksquare(c):
 
 
 def parse_bytes(s):
-    return list(struct.unpack('B' * len(s), s))
+    return list(struct.unpack("B" * len(s), s))
 
 
 def pack_bytes(a):
-    return struct.pack('B' * len(a), *a)
+    return struct.pack("B" * len(a), *a)
 
 
 # dict string format is k1:v1;k2:v2;...;kn:vn;
 # (for whatever reason there's a trailing ';')
 def parse_dict(s):
-    return dict(p.split(':') for p in s.split(';') if ':' in p)
+    return dict(p.split(":") for p in s.split(";") if ":" in p)
 
 
 def dict_to_string(d):
-    return ';'.join(':'.join(map(str, [k, v])) for k, v in d.items()) + ';'
+    return ";".join(":".join(map(str, [k, v])) for k, v in d.items()) + ";"
