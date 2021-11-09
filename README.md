@@ -11,7 +11,7 @@ This is a fork of [nytxw_puz](https://github.com/Q726kbXuN/nytxw_puz) with some 
 ## Usage
 
 ```bash
-pip install nytxw_puz_cli
+pip install nytxw-puz-cli
 nytxw_puz --help
 ```
 
