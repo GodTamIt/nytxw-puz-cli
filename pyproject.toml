@@ -1,6 +1,6 @@
 [tool.poetry]
-name = "nytxw_puz_cli"
-version = "1.0.1"
+name = "nytxw-puz-cli"
+version = "1.0.2"
 description = "CLI tool to convert NY Times crosswords into Across Lite files (.puz)"
 authors = ["Chris Tam <ohgodtamit@gmail.com>"]
 repository = "https://github.com/GodTamIt/nytxw-puz-cli"

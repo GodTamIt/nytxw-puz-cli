@@ -55,7 +55,7 @@ nytxw_gen --start 2012-07-18 --end 2014-12-31 --path-format "~/puzzles/<year>/<m
 This repository uses [poetry](https://python-poetry.org/) to manage dependencies and environments. To get started quickly, run:
 
 ```bash
-cd nytxw_puz_cli
+cd nytxw-puz-cli
 poetry install
 ```
 
