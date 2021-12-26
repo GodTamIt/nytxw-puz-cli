@@ -12,8 +12,9 @@ import requests
 import sys
 import time
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
-from typing import Any, Iterable, List, Optional, Tuple
+from typing import Any, Iterable, Iterator, List, Optional, Tuple
 
 from nytxw_puz import decompress, puz
 
@@ -31,82 +32,6 @@ NYT_TYPE_NORMAL = 1  # Normal cell, could be a rebus
 NYT_TYPE_CIRCLED = 2  # Cell with a circle around it as for letters part of a theme
 NYT_TYPE_GRAY = 3  # A cell filled in as gray
 NYT_TYPE_INVISIBLE = 4  # An "invisible" cell, generally something outside the main grid
-
-LATIN1_SUBS = {
-    # For converting clues etc. into Latin-1 (ISO-8859-1) format;
-    # value None means let the encoder insert a Latin-1 equivalent
-    "“": '"',
-    "”": '"',
-    "‘": "'",
-    "’": "'",
-    "–": "-",
-    "—": "--",
-    "…": "...",
-    "№": "No.",
-    "π": "pi",
-    "€": "EUR",
-    "•": "*",
-    "†": "[dagger]",
-    "‡": "[double dagger]",
-    "™": "[TM]",
-    "‹": "<",
-    "›": ">",
-    "←": "<--",
-    "■": None,
-    "☐": None,
-    "→": "-->",
-    "♣": None,
-    "√": None,
-    "♠": None,
-    "✓": None,
-    "♭": None,
-    "♂": None,
-    "★": "*",
-    "θ": "theta",
-    "β": "beta",
-    "Č": None,
-    "𝚫": "Delta",
-    "❤︎": None,
-    "✔": None,
-    "⚓": None,
-    "♦": None,
-    "♥": None,
-    "☹": None,
-    "☮": None,
-    "☘": None,
-    "◯": None,
-    "▢": None,
-    "∑": None,
-    "∃": None,
-    "↓": None,
-    "⁎": "*",
-    "η": "eta",
-    "α": "alpha",
-    "Ω": "Omega",
-    "ō": None,
-}
-
-# Some rules to remove HTML like things with text versions for the .puz files
-HTML_TO_TEXT_RULES = [
-    ("<i>(.*?)</i>", "_\\1_"),  # "<i>Italic</i>" -> "_Italic_"
-    ("<em>(.*?)</em>", "_\\1_"),  # "<em>Italic</em>" -> "_Italic_"
-    ("<sub>(.*?)</sub>", "\\1"),  # "KNO<sub>3</sub>" -> "KNO3"
-    ("<sup>([0-9 ]+)</sup>", "^\\1"),  # "E=MC<sup>2</sup>" -> "E=MC^2"
-    (
-        "<sup>(.*?)</sup>",
-        "\\1",
-    ),  # "103<sup>rd</sup>" -> "103rd" (Note, after the numeric 'sup')
-    ("<br( /|)>", " / "),  # "A<br>B<br>C" -> "A / B / C"
-    (
-        "<s>(.*?)</s>",
-        "[*cross out* \\1]",
-    ),  # "<s>Crossed Out</s>" -> "[*cross out* Crossed out]"
-    (
-        "<[^>]+>",
-        "",
-    ),  # Remove other things that look like HTML, but leave bare "<" alone.
-    ("&nbsp;", " "),  # Replace HTML's non-breaking spaces into normal spaces
-]
 
 logger = logging.getLogger("nyt")
 LOG_FORMAT = "%(name)s:%(lineno)d::%(levelname)s: %(message)s"
@@ -176,26 +101,216 @@ def try_parse_date(year: str, month: str, day: str) -> Optional[pendulum.DateTim
     return None
 
 
-def latin1ify(s):
-    """Make a Unicode string compliant with the Latin-1 (ISO-8859-1) character
-    set.
+class StyleType(Enum):
+    HTML = "html"
+    MARKDOWN = "markdown"
+    PLAIN = "plain"
 
-    The Across Lite v1.3 format only supports Latin-1 encoding.
-    """
+    @classmethod
+    def values(cls) -> Iterator[str]:
+        return map(lambda c: c.value, cls)
 
-    # Use table to convert the most common Unicode glyphs
-    for search, replace in LATIN1_SUBS.items():
-        if replace is not None:
+
+@dataclass
+class TextFormatter:
+    use_latin1: bool
+    style_type: StyleType
+
+    @staticmethod
+    def from_args(args: argparse.Namespace) -> TextFormatter:
+        return TextFormatter(args.latin1, args.style)
+
+    @classmethod
+    def utf8ify(cls, s: str) -> str:
+        """Perform miscellaneous cleanup on a UTF-8 string.
+
+        NYT clues are already in UTF-8.
+        """
+        UTF8_SUBS = {
+            "“": '"',
+            "”": '"',
+            "‘": "'",
+            "’": "'",
+        }
+
+        for (search, replace) in UTF8_SUBS.items():
             s = s.replace(search, replace)
 
-    # Convert anything remaining using replacements like '\N{WINKING FACE}'
-    s = s.encode("ISO-8859-1", "namereplace").decode("ISO-8859-1")
+        return s
 
-    # Replace HTML like things into plain text
-    for pattern, repl in HTML_TO_TEXT_RULES:
-        s = re.sub(pattern, repl, s)
+    @classmethod
+    def latin1ify(cls, s: str) -> str:
+        """Make a Unicode string compliant with the Latin-1 (ISO-8859-1) character
+        set.
 
-    return s
+        The Across Lite v1.3 format only supports Latin-1 encoding.
+        """
+
+        LATIN1_SUBS = {
+            # For converting clues etc. into Latin-1 (ISO-8859-1) format;
+            # value None means let the encoder insert a Latin-1 equivalent
+            "“": '"',
+            "”": '"',
+            "‘": "'",
+            "’": "'",
+            "–": "-",
+            "—": "--",
+            "…": "...",
+            "№": "No.",
+            "π": "pi",
+            "€": "EUR",
+            "•": "*",
+            "†": "[dagger]",
+            "‡": "[double dagger]",
+            "™": "[TM]",
+            "‹": "<",
+            "›": ">",
+            "←": "<--",
+            "■": None,
+            "☐": None,
+            "→": "-->",
+            "♣": None,
+            "√": None,
+            "♠": None,
+            "✓": None,
+            "♭": None,
+            "♂": None,
+            "★": "*",
+            "θ": "theta",
+            "β": "beta",
+            "Č": None,
+            "𝚫": "Delta",
+            "❤︎": None,
+            "✔": None,
+            "⚓": None,
+            "♦": None,
+            "♥": None,
+            "☹": None,
+            "☮": None,
+            "☘": None,
+            "◯": None,
+            "▢": None,
+            "∑": None,
+            "∃": None,
+            "↓": None,
+            "⁎": "*",
+            "η": "eta",
+            "α": "alpha",
+            "Ω": "Omega",
+            "ō": None,
+        }
+
+        # Use table to convert the most common Unicode glyphs
+        for search, replace in LATIN1_SUBS.items():
+            if replace is not None:
+                s = s.replace(search, replace)
+
+        # Convert anything remaining using replacements like '\N{WINKING FACE}'
+        s = s.encode("ISO-8859-1", "namereplace").decode("ISO-8859-1")
+
+        return s
+
+    @classmethod
+    def htmlify(cls, s: str) -> str:
+        """Perform minor cleanup on an HTML string.
+
+        NYT puzzles already have HTML-style clues.
+        """
+        HTML_RULES = [
+            ("&nbsp;", " "),  # Replace HTML's non-breaking spaces into normal spaces
+        ]
+
+        for pattern, repl in HTML_RULES:
+            s = re.sub(pattern, repl, s)
+
+        return s
+
+    @classmethod
+    def markdownify(cls, s: str) -> str:
+        # Some rules to remove HTML like things with text versions for the .puz files
+        MARKDOWN_RULES = [
+            ("<i>(.*?)</i>", "_\\1_"),  # "<i>Italic</i>" -> "_Italic_"
+            ("<em>(.*?)</em>", "_\\1_"),  # "<em>Italic</em>" -> "_Italic_"
+            ("<sub>(.*?)</sub>", "\\1"),  # "KNO<sub>3</sub>" -> "KNO3"
+            ("<sup>([0-9 ]+)</sup>", "^\\1"),  # "E=MC<sup>2</sup>" -> "E=MC^2"
+            (
+                "<sup>(.*?)</sup>",
+                "\\1",
+            ),  # "103<sup>rd</sup>" -> "103rd" (Note, after the numeric 'sup')
+            ("<br( /|)>", " / "),  # "A<br>B<br>C" -> "A / B / C"
+            (
+                "<s>(.*?)</s>",
+                "[*cross out* \\1]",
+            ),  # "<s>Crossed Out</s>" -> "[*cross out* Crossed out]"
+            (
+                "<[^>]+>",
+                "",
+            ),  # Remove other things that look like HTML, but leave bare "<" alone.
+            ("&nbsp;", " "),  # Replace HTML's non-breaking spaces into normal spaces
+        ]
+
+        for pattern, repl in MARKDOWN_RULES:
+            s = re.sub(pattern, repl, s)
+
+        return s
+
+    @classmethod
+    def plainify(cls, s: str) -> str:
+        PLAIN_RULES = [
+            ("<i>(.*?)</i>", "\\1"),  # "<i>Italic</i>" -> "_Italic_"
+            ("<em>(.*?)</em>", "\\1"),  # "<em>Italic</em>" -> "_Italic_"
+            ("<sub>(.*?)</sub>", "\\1"),  # "KNO<sub>3</sub>" -> "KNO3"
+            ("<sup>([0-9 ]+)</sup>", "^\\1"),  # "E=MC<sup>2</sup>" -> "E=MC^2"
+            (
+                "<sup>(.*?)</sup>",
+                "\\1",
+            ),  # "103<sup>rd</sup>" -> "103rd" (Note, after the numeric 'sup')
+            ("<br( /|)>", " / "),  # "A<br>B<br>C" -> "A / B / C"
+            (
+                "<s>(.*?)</s>",
+                "[*cross out* \\1]",
+            ),  # "<s>Crossed Out</s>" -> "[*cross out* Crossed out]"
+            (
+                "<[^>]+>",
+                "",
+            ),  # Remove other things that look like HTML, but leave bare "<" alone.
+            ("&nbsp;", " "),  # Replace HTML's non-breaking spaces into normal spaces
+        ]
+
+        for pattern, repl in PLAIN_RULES:
+            s = re.sub(pattern, repl, s)
+
+        return s
+
+    def format(self, s: str) -> str:
+        """Format a string with the rules of the formatter."""
+
+        if self.use_latin1:
+            s = self.latin1ify(s)
+
+        if self.style_type == StyleType.HTML:
+            s = self.htmlify(s)
+        elif self.style_type == StyleType.MARKDOWN:
+            s = self.markdownify(s)
+        elif self.style_type == StyleType.PLAIN:
+            s = self.plainify(s)
+        else:
+            raise RuntimeError(f"Unknown style type: {self.style_type}")
+
+        return s
+
+    def format_with(
+        self,
+        s: str,
+        use_latin1: Optional[bool] = None,
+        style_type: Optional[StyleType] = None,
+    ):
+        """Format a string with certain rules of the formatter overridden."""
+
+        use_latin1 = use_latin1 if use_latin1 is not None else self.use_latin1
+        style_type = style_type if style_type is not None else self.style_type
+
+        return self.format(s)
 
 
 def get_between(haystack: str, start_token: str, end_token: str) -> Optional[str]:
@@ -312,7 +427,7 @@ class Credentials:
 
 class NytPuzzle:
     @staticmethod
-    def try_from_json(json_data: Any) -> Optional[NytPuzzle]:
+    def try_from_json(json_data: Any, formatter: TextFormatter) -> Optional[NytPuzzle]:
         if json_data is None:
             return None
 
@@ -341,26 +456,37 @@ class NytPuzzle:
         if failed:
             return None
         else:
-            return NytPuzzle(game_data)
+            return NytPuzzle(game_data, formatter)
 
-    def __init__(self, game_data: Any):
+    def __init__(self, game_data: Any, formatter: TextFormatter):
         self._game_data = game_data
+        self._formatter = formatter
 
     def title(self) -> str:
         # Determine title based on publication date and title fields
         if "publicationDate" in self._game_data["meta"]:
-            title = "NY Times"
+            title_parts = ["NY Times"]
 
             year, month, day = self._game_data["meta"]["publicationDate"].split("-")
             maybe_date = try_parse_date(year, month, day)
 
             if maybe_date is not None:
-                title += f", {maybe_date.format('dddd, MMMM D, YYYY')}"
+                title_parts.append(f", {maybe_date.format('dddd, MMMM D, YYYY')}")
 
             if "title" in self._game_data["meta"]:
-                title += " - " + latin1ify(self._game_data["meta"]["title"].title())
+                title_parts.append(" - ")
+                title_parts.append(
+                    self._formatter.format_with(
+                        self._game_data["meta"]["title"].title(),
+                        style_type=StyleType.PLAIN,
+                    )
+                )
+
+            title = "".join(title_parts)
         elif "title" in self._game_data["meta"]:
-            title = latin1ify(self._game_data["meta"]["title"].title())
+            title = self._formatter.format_with(
+                self._game_data["meta"]["title"].title(), style_type=StyleType.PLAIN
+            )
         else:
             # Fallback on generic title if no fields are available.
             title = "NY Times Crossword"
@@ -374,21 +500,21 @@ class NytPuzzle:
         )
 
     def authors(self) -> Iterable[str]:
-        return (latin1ify(c) for c in self._game_data["meta"]["constructors"])
+        return (
+            self._formatter.format(c) for c in self._game_data["meta"]["constructors"]
+        )
 
     def has_editor(self) -> bool:
         return bool(self._game_data["meta"].get("editor", None))
 
     def editor(self) -> str:
-        return latin1ify(self._game_data["meta"]["editor"])
+        return self._formatter.format(self._game_data["meta"]["editor"])
 
     def has_copyright(self) -> bool:
         return bool(self._game_data["meta"].get("copyright", None))
 
     def copyright(self) -> str:
-        return (
-            f"© {latin1ify(self._game_data['meta']['copyright'])}, The New York Times"
-        )
+        return f"© {self._formatter.format(self._game_data['meta']['copyright'])}, The New York Times"
 
     def height(self) -> int:
         return self._game_data["dimensions"]["rowCount"]
@@ -401,7 +527,7 @@ class NytPuzzle:
 
     def notes(self) -> Iterable[str]:
         return (
-            latin1ify(x["text"])
+            self._formatter.format(x["text"])
             for x in self._game_data["meta"]["notes"]
             if "text" in x
         )
@@ -479,7 +605,8 @@ class NytPuzzle:
 
         # Fill out the main grid
         out_puz.solution = "".join(
-            latin1ify(x["answer"][0]) if "answer" in x else "." for x in cells
+            self._formatter.format(x["answer"][0]) if "answer" in x else "."
+            for x in cells
         )
         out_puz.fill = "".join("-" if "answer" in x else "." for x in cells)
 
@@ -489,11 +616,14 @@ class NytPuzzle:
         clues = []
         for cell in cells:
             for clue in cell["clues"]:
-                if clue not in seen:
-                    seen.add(clue)
-                    clues.append(
-                        latin1ify(html.unescape(self._game_data["clues"][clue]["text"]))
-                    )
+                if clue in seen:
+                    continue
+
+                seen.add(clue)
+                clue_text = html.unescape(self._game_data["clues"][clue]["text"])
+                clue_text = self._formatter.format(clue_text)
+                clues.append(clue_text)
+
         out_puz.clues = clues
 
         # See if any of the answers is multi-character (rebus)
@@ -504,7 +634,7 @@ class NytPuzzle:
             # And find all the rebus answers and add them to the data
             for cell in cells:
                 if "answer" in cell and len(cell["answer"]) > 1:
-                    rebus.add_rebus(latin1ify(cell["answer"]))
+                    rebus.add_rebus(self._formatter.format(cell["answer"]))
                 else:
                     rebus.add_rebus(None)
 
@@ -748,7 +878,9 @@ class PuzzleFetcher:
 
         return True
 
-    def fetch_puzzle(self, url: str, max_tries: int) -> Optional[NytPuzzle]:
+    def fetch_puzzle(
+        self, url: str, max_tries: int, formatter: TextFormatter
+    ) -> Optional[NytPuzzle]:
         tries = 0
         content = None
 
@@ -775,7 +907,7 @@ class PuzzleFetcher:
                     return None
 
         puzzle_json = self._parse_puzzle_page(content)
-        puzzle = NytPuzzle.try_from_json(puzzle_json)
+        puzzle = NytPuzzle.try_from_json(puzzle_json, formatter)
         if puzzle is None:
             logger.error("Failed to parse puzzle JSON")
 
@@ -885,6 +1017,7 @@ def parse_args() -> argparse.Namespace:
     DEFAULT_TIMEOUT = 5000
     DEFAULT_MAX_TRIES = 2
     DEFAULT_MAX_SIGN_IN_TRIES = 8
+    DEFAULT_STYLE = "html"
 
     parser = argparse.ArgumentParser(
         "nytxw_puz",
@@ -897,12 +1030,12 @@ URLs and output filenames can either be specified via the --urls and --filenames
         "--credentials",
         type=Path,
         required=True,
-        help="the file containing the user credentials for the NY Times website.",
+        help="The file containing the user credentials for the NY Times website.",
     )
     parser.add_argument(
         "--import-cookies",
         type=Path,
-        help="import previously-exported cookies from JSON file.",
+        help="Import previously-exported cookies from JSON file.",
     )
     parser.add_argument(
         "--export-cookies", type=Path, help="export cookies to JSON file."
@@ -911,46 +1044,57 @@ URLs and output filenames can either be specified via the --urls and --filenames
         "--backoff",
         type=int,
         default=DEFAULT_BACKOFF,
-        help=f"the minimum amount of time, in ms, to wait between requests. Default: {DEFAULT_BACKOFF}",
+        help=f"The minimum amount of time, in ms, to wait between requests. Default: {DEFAULT_BACKOFF}",
     )
     parser.add_argument(
         "--timeout",
         type=int,
         default=DEFAULT_TIMEOUT,
-        help=f"the maximum amount of time, in ms, to wait for request responses. Default: {DEFAULT_TIMEOUT}",
+        help=f"The maximum amount of time, in ms, to wait for request responses. Default: {DEFAULT_TIMEOUT}",
     )
     parser.add_argument(
         "--max-tries",
         type=int,
         default=DEFAULT_MAX_TRIES,
-        help=f"the maximum amount of times to attempt loading a puzzle. Default: {DEFAULT_MAX_TRIES}",
+        help=f"The maximum amount of times to attempt loading a puzzle. Default: {DEFAULT_MAX_TRIES}",
     )
     parser.add_argument(
         "--max-sign-in-tries",
         type=int,
         default=DEFAULT_MAX_SIGN_IN_TRIES,
-        help=f"the maximum amount of times to attempt signing in. Default: {DEFAULT_MAX_SIGN_IN_TRIES}",
+        help=f"The maximum amount of times to attempt signing in. Default: {DEFAULT_MAX_SIGN_IN_TRIES}",
     )
     parser.add_argument(
         "--print-puzzle",
         "--print-puzzles",
         action="store_true",
-        help="print the puzzles to the console.",
+        help="Print the puzzles to the console.",
     )
     parser.add_argument(
-        "--no-color", action="store_true", help="emit logs without colors."
+        "--no-color", action="store_true", help="Emit logs without colors."
     )
     parser.add_argument(
-        "-v", "--verbose", action="count", default=0, help="verbose output."
+        "-v", "--verbose", action="count", default=0, help="Verbose output."
     )
     parser.add_argument(
-        "--urls", type=str, nargs="*", help="the crossword URL(s) to fetch."
+        "--urls", type=str, nargs="*", help="The crossword URL(s) to fetch."
     )
     parser.add_argument(
         "--filenames",
         type=Path,
         nargs="*",
-        help="the corresponding location to save each crossword specified in `url`.",
+        help="The corresponding location to save each crossword specified in `url`.",
+    )
+    parser.add_argument(
+        "--latin1",
+        action="store_true",
+        help="Convert the string encoding to Latin-1 (ISO-8859-1). Certain programs only support this encoding.",
+    )
+    parser.add_argument(
+        "--style",
+        type=StyleType,
+        default=DEFAULT_STYLE,
+        help=f"The styling to use. Options: {', '.join(StyleType.values())}. (Default: {DEFAULT_STYLE})",
     )
 
     return parser.parse_args()
@@ -1005,12 +1149,14 @@ def main():
     if args.import_cookies:
         fetcher.import_cookies_from_file(args.import_cookies)
 
+    formatter = TextFormatter.from_args(args)
+
     for (url, filename) in tasks:
         if fetcher.has_reached_sign_in_limit():
             logger.error("Maximum sign in limit reached. Aborting all operations.")
             exit(1)
 
-        puzzle = fetcher.fetch_puzzle(url, args.max_tries)
+        puzzle = fetcher.fetch_puzzle(url, args.max_tries, formatter)
 
         if puzzle is None:
             continue
